@@ -207,27 +207,44 @@ class NotificationViewModel @Inject constructor(
     }
     
     /**
-     * Creates a test notification for debugging purposes
+     * Creates an enhanced test notification with proper user data for debugging
      */
     fun createTestNotification() {
         viewModelScope.launch {
             try {
-                println("Debug: NotificationViewModel - Creating test notification")
+                println("Debug: NotificationViewModel - Creating enhanced test notification")
                 
-                // First, create a test user in Firestore to ensure contact details exist
-                val testUserId = "test_buyer_contact_demo"
+                // Create test user data with all the fields we expect
+                val testUserId = "test_contact_demo_${System.currentTimeMillis()}"
                 val testUserData = mapOf(
+                    "id" to testUserId,
+                    "email" to "john.testcontact@giggo.demo",
+                    "firstName" to "John",
+                    "lastName" to "Test Contact",
                     "displayName" to "John Test Contact",
-                    "email" to "john.test@example.com",
-                    "phone" to "+1234567890",
+                    "name" to "John Test Contact",
+                    "fullName" to "John Test Contact",
                     "profileImageUrl" to "",
+                    "photoURL" to "",
+                    "phoneNumber" to "+1 (555) 123-4567",
+                    "phone" to "+1 (555) 123-4567",
+                    "phone_number" to "+1 (555) 123-4567",
                     "location" to "New York, USA",
-                    "createdAt" to System.currentTimeMillis(),
-                    "completedGigs" to 5,
-                    "rating" to 4.5,
+                    "address" to "New York, USA",
+                    "city" to "New York",
+                    "bio" to "Experienced mobile developer with 5+ years in Flutter and Android development. Passionate about creating beautiful, user-friendly apps.",
+                    "description" to "Experienced mobile developer with 5+ years in Flutter and Android development.",
+                    "about" to "Experienced mobile developer with 5+ years in Flutter and Android development.",
+                    "skills" to listOf("Flutter", "Android Development", "Firebase", "UI/UX Design", "Kotlin"),
+                    "expertise" to listOf("Flutter", "Android Development", "Firebase"),
+                    "completedGigs" to 15,
+                    "rating" to 4.8,
                     "isVerified" to true,
-                    "skills" to listOf("Flutter", "Firebase", "UI/UX"),
-                    "bio" to "Experienced mobile developer with 5+ years in Flutter development."
+                    "emailVerified" to true,
+                    "is_verified" to true,
+                    "verified" to true,
+                    "isEmailVerified" to true,
+                    "createdAt" to (System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)) // 30 days ago
                 )
                 
                 // Save test user to Firestore
@@ -237,34 +254,37 @@ class NotificationViewModel @Inject constructor(
                         .document(testUserId)
                         .set(testUserData)
                         .await()
-                    println("Debug: NotificationViewModel - Test user created successfully")
+                    println("Debug: NotificationViewModel - Test user created successfully with ID: $testUserId")
                 } catch (e: Exception) {
                     println("Debug: NotificationViewModel - Error creating test user: ${e.message}")
                 }
                 
                 // Create a test contact seller request with the test user
                 val testRequest = ContactSellerRequest(
-                    gigId = "test_gig_contact_demo",
-                    gigTitle = "Test Flutter Development Gig for Contact Demo",
+                    gigId = "test_gig_demo_${System.currentTimeMillis()}",
+                    gigTitle = "Professional Mobile App Development - React Native & Flutter",
                     sellerUserId = FirebaseAuth.getInstance().currentUser?.uid ?: "current_seller",
                     buyerUserId = testUserId,
                     buyerName = "John Test Contact",
-                    message = "Hi, I'm interested in your gig. This is a test message to demonstrate the contact details popup."
+                    message = "Hi! I saw your gig and I'm very interested in working with you. I have a mobile app project that needs both iOS and Android development. Could we discuss the details? I'm looking for someone with your expertise in Flutter and native development."
                 )
                 
                 val response = notificationService.sendContactSellerNotification(testRequest)
-                println("Debug: NotificationViewModel - Test notification created: ${response.success}")
+                println("Debug: NotificationViewModel - Test notification response: Success=${response.success}, Message=${response.message}")
                 
                 if (response.success) {
                     loadNotifications() // Refresh to show the new notification
-                    println("Debug: NotificationViewModel - Test notification with contact data ready!")
+                    println("Debug: NotificationViewModel - Test notification created successfully!")
+                    println("Debug: You should now see a notification from 'John Test Contact' that you can tap to view contact details.")
                 } else {
                     println("Debug: NotificationViewModel - Failed to create test notification: ${response.message}")
+                    _errorMessage.value = "Failed to create test notification: ${response.message}"
                 }
                 
             } catch (e: Exception) {
                 println("Debug: NotificationViewModel - Error creating test notification: ${e.message}")
                 e.printStackTrace()
+                _errorMessage.value = "Error creating test notification: ${e.message}"
             }
         }
     }
@@ -312,7 +332,7 @@ class NotificationViewModel @Inject constructor(
     }
     
     /**
-     * Loads contact details for a specific user and shows the dialog
+     * Loads contact details for a specific user and shows the dialog with enhanced error handling
      */
     fun loadContactDetails(userId: String) {
         viewModelScope.launch {
@@ -329,35 +349,33 @@ class NotificationViewModel @Inject constructor(
                     return@launch
                 }
                 
+                // First attempt: Try to get full contact details from notification service
                 val details = notificationService.getUserContactDetails(userId)
                 if (details != null) {
-                    println("Debug: NotificationViewModel - Contact details loaded successfully for: ${details.name}")
+                    println("Debug: NotificationViewModel - Contact details loaded successfully")
+                    println("Debug: Contact details - Name: ${details.name}, Email: ${details.email}")
+                    println("Debug: Contact details - Phone: ${details.phone}, Location: ${details.location}")
                     _contactDetails.value = details
                     _showContactDetailsDialog.value = true
                 } else {
-                    println("Debug: NotificationViewModel - Failed to load contact details for user: $userId")
-                    _errorMessage.value = "Could not load contact details. The user profile may not be complete."
+                    println("Debug: NotificationViewModel - Failed to load contact details, attempting fallback")
                     
-                    // Try to create a minimal contact details from the notification data
+                    // Fallback: Try to create contact details from notification data
                     val notification = _notifications.value.find { it.senderUserId == userId }
                     if (notification != null) {
-                        println("Debug: NotificationViewModel - Creating minimal contact details from notification data")
-                        val minimalDetails = com.natrajtechnology.giggo.data.model.ContactDetails(
-                            userId = userId,
-                            name = notification.senderName,
-                            email = "Contact information not available",
-                            phone = "",
-                            profileImageUrl = "",
-                            location = "",
-                            joinDate = "Recently joined",
-                            completedGigs = 0,
-                            rating = 0.0f,
-                            isVerified = false,
-                            skills = listOf("GigGO User"),
-                            bio = "This user contacted you about: ${notification.gigTitle}"
-                        )
-                        _contactDetails.value = minimalDetails
-                        _showContactDetailsDialog.value = true
+                        println("Debug: NotificationViewModel - Creating fallback contact details from notification")
+                        
+                        // Try to get basic user info directly from Firestore
+                        val fallbackDetails = createFallbackContactDetails(userId, notification)
+                        if (fallbackDetails != null) {
+                            _contactDetails.value = fallbackDetails
+                            _showContactDetailsDialog.value = true
+                        } else {
+                            _errorMessage.value = "Unable to load contact information. The user may not have completed their profile."
+                        }
+                    } else {
+                        println("Debug: NotificationViewModel - No notification found for user: $userId")
+                        _errorMessage.value = "Contact information not available."
                     }
                 }
                 
@@ -368,6 +386,65 @@ class NotificationViewModel @Inject constructor(
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+    
+    /**
+     * Creates fallback contact details when full details are not available
+     */
+    private suspend fun createFallbackContactDetails(
+        userId: String, 
+        notification: Notification
+    ): com.natrajtechnology.giggo.data.model.ContactDetails? {
+        return try {
+            // Try to get basic user data directly from Firestore
+            val userDoc = FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(userId)
+                .get()
+                .await()
+            
+            if (userDoc.exists()) {
+                val userData = userDoc.data
+                val email = userData?.get("email") as? String ?: "Contact via GigGO app"
+                val phone = userData?.get("phone") as? String 
+                    ?: userData?.get("phoneNumber") as? String 
+                    ?: ""
+                
+                com.natrajtechnology.giggo.data.model.ContactDetails(
+                    userId = userId,
+                    name = notification.senderName,
+                    email = email,
+                    phone = phone,
+                    profileImageUrl = "",
+                    location = userData?.get("location") as? String ?: "",
+                    joinDate = "Member of GigGO",
+                    completedGigs = 0,
+                    rating = 0.0f,
+                    isVerified = false,
+                    skills = listOf("GigGO User"),
+                    bio = "This user contacted you about: ${notification.gigTitle}"
+                )
+            } else {
+                // Last resort: Create minimal details from notification only
+                com.natrajtechnology.giggo.data.model.ContactDetails(
+                    userId = userId,
+                    name = notification.senderName,
+                    email = "Contact information not available",
+                    phone = "",
+                    profileImageUrl = "",
+                    location = "",
+                    joinDate = "Recently joined",
+                    completedGigs = 0,
+                    rating = 0.0f,
+                    isVerified = false,
+                    skills = listOf("GigGO User"),
+                    bio = "This user contacted you about: ${notification.gigTitle}"
+                )
+            }
+        } catch (e: Exception) {
+            println("Debug: NotificationViewModel - Error creating fallback details: ${e.message}")
+            null
         }
     }
     

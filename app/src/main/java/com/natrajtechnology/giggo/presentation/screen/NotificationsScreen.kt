@@ -433,7 +433,7 @@ fun NotificationCard(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Loading...",
+                                    text = "Loading contact...",
                                     fontSize = 12.sp,
                                     color = Primary,
                                     fontWeight = FontWeight.Medium
@@ -447,7 +447,7 @@ fun NotificationCard(
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier
                                     .clickable { 
-                                        println("Debug: NotificationCard - Buyer name clicked: ${notification.senderName} (ID: ${notification.senderUserId})")
+                                        println("Debug: NotificationCard - Contact name clicked: ${notification.senderName} (ID: ${notification.senderUserId})")
                                         onSenderClick(notification.senderUserId) 
                                     }
                                     .background(
@@ -460,7 +460,7 @@ fun NotificationCard(
                         
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (isLoadingContacts) "" else "• Tap to view contact",
+                            text = if (isLoadingContacts) "" else "• Tap name to view contact",
                             fontSize = 10.sp,
                             color = Gray500,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic

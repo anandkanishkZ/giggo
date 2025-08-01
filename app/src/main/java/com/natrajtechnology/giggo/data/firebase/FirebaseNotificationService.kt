@@ -226,7 +226,7 @@ class FirebaseNotificationService @Inject constructor(
     }
     
     /**
-     * Gets detailed contact information for a user
+     * Gets detailed contact information for a user with improved data retrieval
      */
     suspend fun getUserContactDetails(userId: String): com.natrajtechnology.giggo.data.model.ContactDetails? {
         return try {
@@ -247,70 +247,120 @@ class FirebaseNotificationService @Inject constructor(
             
             println("Debug: FirebaseNotificationService - Raw user data: $userData")
             
-            // Build display name from firstName and lastName if displayName doesn't exist
+            // Enhanced display name resolution with fallbacks
             val firstName = userData["firstName"] as? String ?: ""
             val lastName = userData["lastName"] as? String ?: ""
             val displayName = userData["displayName"] as? String 
                 ?: userData["name"] as? String 
+                ?: userData["fullName"] as? String
                 ?: if (firstName.isNotBlank() || lastName.isNotBlank()) {
                     "$firstName $lastName".trim()
                 } else {
-                    "Unknown User"
+                    // Last resort: try to extract from email
+                    val email = userData["email"] as? String ?: ""
+                    if (email.isNotBlank()) {
+                        email.substringBefore("@").replace(".", " ").replace("_", " ")
+                            .split(" ").joinToString(" ") { word ->
+                                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                            }
+                    } else "Unknown User"
                 }
             
-            // Format join date properly
+            // Enhanced email resolution
+            val email = userData["email"] as? String ?: ""
+            
+            // Enhanced phone resolution with multiple fallbacks
+            val phone = userData["phone"] as? String 
+                ?: userData["phoneNumber"] as? String 
+                ?: userData["phone_number"] as? String 
+                ?: userData["mobile"] as? String
+                ?: ""
+            
+            // Enhanced profile image resolution
+            val profileImageUrl = userData["profileImageUrl"] as? String 
+                ?: userData["photoURL"] as? String 
+                ?: userData["profile_image_url"] as? String 
+                ?: userData["avatar"] as? String
+                ?: ""
+            
+            // Enhanced location resolution
+            val location = userData["location"] as? String 
+                ?: userData["address"] as? String 
+                ?: userData["city"] as? String 
+                ?: userData["country"] as? String
+                ?: ""
+            
+            // Enhanced bio resolution
+            val bio = userData["bio"] as? String 
+                ?: userData["description"] as? String 
+                ?: userData["about"] as? String 
+                ?: userData["summary"] as? String
+                ?: "Professional GigGO user ready to help with your project."
+            
+            // Format join date properly with multiple fallbacks
             val joinDate = when (val createdAt = userData["createdAt"]) {
                 is Long -> {
                     val dateFormat = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
                     dateFormat.format(java.util.Date(createdAt))
                 }
                 is String -> createdAt
+                is com.google.firebase.Timestamp -> {
+                    val dateFormat = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
+                    dateFormat.format(createdAt.toDate())
+                }
                 else -> "Recently joined"
             }
             
-            // Get additional stats (this could be enhanced with actual data from other collections)
+            // Enhanced verification status resolution
+            val isVerified = userData["isVerified"] as? Boolean 
+                ?: userData["emailVerified"] as? Boolean 
+                ?: userData["is_verified"] as? Boolean 
+                ?: userData["verified"] as? Boolean
+                ?: false
+            
+            // Enhanced skills resolution
+            val skills = (userData["skills"] as? List<*>)?.filterIsInstance<String>()?.takeIf { it.isNotEmpty() }
+                ?: (userData["expertise"] as? List<*>)?.filterIsInstance<String>()?.takeIf { it.isNotEmpty() }
+                ?: (userData["categories"] as? List<*>)?.filterIsInstance<String>()?.takeIf { it.isNotEmpty() }
+                ?: listOf("GigGO Professional") // Default skill
+            
+            // Get additional stats with multiple data type handling
+            val completedGigs = when (val completed = userData["completedGigs"]) {
+                is Long -> completed.toInt()
+                is Int -> completed
+                is String -> completed.toIntOrNull() ?: 0
+                is Double -> completed.toInt()
+                else -> 0
+            }
+            
+            val rating = when (val rating = userData["rating"]) {
+                is Double -> rating.toFloat()
+                is Float -> rating
+                is Long -> rating.toFloat()
+                is Int -> rating.toFloat()
+                is String -> rating.toFloatOrNull() ?: 0.0f
+                else -> 0.0f
+            }
+            
             val contactDetails = com.natrajtechnology.giggo.data.model.ContactDetails(
                 userId = userId,
                 name = displayName,
-                email = userData["email"] as? String ?: "",
-                phone = userData["phone"] as? String 
-                    ?: userData["phoneNumber"] as? String 
-                    ?: userData["phone_number"] as? String ?: "",
-                profileImageUrl = userData["profileImageUrl"] as? String 
-                    ?: userData["photoURL"] as? String 
-                    ?: userData["profile_image_url"] as? String ?: "",
-                location = userData["location"] as? String 
-                    ?: userData["address"] as? String 
-                    ?: userData["city"] as? String ?: "",
+                email = email,
+                phone = phone,
+                profileImageUrl = profileImageUrl,
+                location = location,
                 joinDate = joinDate,
-                completedGigs = when (val completed = userData["completedGigs"]) {
-                    is Long -> completed.toInt()
-                    is Int -> completed
-                    is String -> completed.toIntOrNull() ?: 0
-                    else -> 0
-                },
-                rating = when (val rating = userData["rating"]) {
-                    is Double -> rating.toFloat()
-                    is Float -> rating
-                    is Long -> rating.toFloat()
-                    is Int -> rating.toFloat()
-                    is String -> rating.toFloatOrNull() ?: 0.0f
-                    else -> 0.0f
-                },
-                isVerified = userData["isVerified"] as? Boolean 
-                    ?: userData["emailVerified"] as? Boolean 
-                    ?: userData["is_verified"] as? Boolean ?: false,
-                skills = (userData["skills"] as? List<*>)?.filterIsInstance<String>() 
-                    ?: listOf("Android Developer"), // Default skill for demo
-                bio = userData["bio"] as? String 
-                    ?: userData["description"] as? String 
-                    ?: userData["about"] as? String 
-                    ?: "Experienced professional ready to help with your project."
+                completedGigs = completedGigs,
+                rating = rating,
+                isVerified = isVerified,
+                skills = skills,
+                bio = bio
             )
             
-            println("Debug: FirebaseNotificationService - Found contact details: ${contactDetails.name} (${contactDetails.email})")
-            println("Debug: FirebaseNotificationService - Phone: ${contactDetails.phone}, Location: ${contactDetails.location}")
-            println("Debug: FirebaseNotificationService - Skills: ${contactDetails.skills}, Bio: ${contactDetails.bio}")
+            println("Debug: FirebaseNotificationService - Successfully created contact details for: ${contactDetails.name}")
+            println("Debug: Contact Details - Email: ${contactDetails.email}, Phone: ${contactDetails.phone}")
+            println("Debug: Contact Details - Location: ${contactDetails.location}, Verified: ${contactDetails.isVerified}")
+            println("Debug: Contact Details - Skills: ${contactDetails.skills}, Bio length: ${contactDetails.bio.length}")
             
             contactDetails
             

@@ -2,6 +2,7 @@ package com.natrajtechnology.giggo.presentation.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -168,7 +169,9 @@ fun ContactDetailsDialog(
                     )
                     
                     // Email
-                    if (contactDetails.email.isNotBlank() && !contactDetails.email.contains("not available")) {
+                    if (contactDetails.email.isNotBlank() && 
+                        !contactDetails.email.contains("not available") && 
+                        !contactDetails.email.contains("Contact via GigGO app")) {
                         ContactInfoRow(
                             icon = Icons.Default.Email,
                             label = "Email",
@@ -186,12 +189,14 @@ fun ContactDetailsDialog(
                             }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                    } else if (contactDetails.email.contains("not available")) {
+                    } else {
                         ContactInfoRow(
                             icon = Icons.Default.Email,
                             label = "Email",
-                            value = "Contact information not shared",
-                            onClick = null
+                            value = if (contactDetails.email.contains("Contact via GigGO app")) 
+                                "Contact via GigGO app" else "Contact information not shared",
+                            onClick = null,
+                            isUnavailable = true
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -315,23 +320,27 @@ fun ContactInfoRow(
     icon: ImageVector,
     label: String,
     value: String,
-    onClick: (() -> Unit)?
+    onClick: (() -> Unit)? = null,
+    isUnavailable: Boolean = false
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (onClick != null) {
-                    Modifier
+                if (onClick != null && !isUnavailable) {
+                    Modifier.clickable { onClick() }
                 } else {
                     Modifier
                 }
             ),
         colors = CardDefaults.cardColors(
-            containerColor = Gray300.copy(alpha = 0.3f)
+            containerColor = if (isUnavailable) {
+                Gray300.copy(alpha = 0.2f)
+            } else {
+                Gray300.copy(alpha = 0.3f)
+            }
         ),
-        shape = RoundedCornerShape(12.dp),
-        onClick = onClick ?: {}
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
@@ -342,7 +351,7 @@ fun ContactInfoRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Primary,
+                tint = if (isUnavailable) Gray500 else Primary,
                 modifier = Modifier.size(20.dp)
             )
             
@@ -360,12 +369,13 @@ fun ContactInfoRow(
                 Text(
                     text = value,
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Medium
+                    color = if (isUnavailable) Gray500 else MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Medium,
+                    fontStyle = if (isUnavailable) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
                 )
             }
             
-            if (onClick != null) {
+            if (onClick != null && !isUnavailable) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Launch,
                     contentDescription = "Open",

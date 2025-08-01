@@ -64,24 +64,33 @@ class FirebaseAuthService @Inject constructor(
                 // Send email verification
                 firebaseUser.sendEmailVerification().await()
                 
-                // Create user document in Firestore with enhanced profile data
+                // Create user document in Firestore with standardized profile data
                 val displayName = "${request.firstName} ${request.lastName}".trim()
                 val userDataMap = mapOf(
                     "id" to firebaseUser.uid,
                     "email" to request.email,
                     "firstName" to request.firstName,
                     "lastName" to request.lastName,
-                    "displayName" to displayName, // Add displayName for easier lookup
-                    "name" to displayName, // Alternative field name
+                    "displayName" to displayName, // Primary display name field
+                    "name" to displayName, // Alternative field name for compatibility
+                    "fullName" to displayName, // Additional alternative
                     "profileImageUrl" to "",
+                    "photoURL" to "", // Alternative field name
                     "phoneNumber" to "",
                     "phone" to "", // Alternative field name
+                    "phone_number" to "", // Additional alternative
                     "location" to "",
+                    "address" to "", // Alternative field name
+                    "city" to "", // Additional alternative
                     "bio" to "Welcome to GigGO! I'm excited to work on amazing projects.",
+                    "description" to "Welcome to GigGO! I'm excited to work on amazing projects.", // Alternative field
+                    "about" to "Welcome to GigGO! I'm excited to work on amazing projects.", // Additional alternative
                     "skills" to listOf<String>(), // Empty list initially
                     "completedGigs" to 0,
                     "rating" to 0.0,
                     "isVerified" to false,
+                    "emailVerified" to false, // Alternative field name
+                    "is_verified" to false, // Additional alternative
                     "isEmailVerified" to false,
                     "createdAt" to Date().time
                 )
@@ -204,11 +213,17 @@ class FirebaseAuthService @Inject constructor(
             
             currentUser.updateProfile(profileUpdates).await()
             
-            // Update user document in Firestore
+            // Update user document in Firestore with standardized fields
+            val displayName = "$firstName $lastName".trim()
             val userUpdates = mapOf(
                 "firstName" to firstName,
                 "lastName" to lastName,
-                "phoneNumber" to phoneNumber
+                "displayName" to displayName, // Primary display name field
+                "name" to displayName, // Alternative field name for compatibility
+                "fullName" to displayName, // Additional alternative
+                "phoneNumber" to phoneNumber,
+                "phone" to phoneNumber, // Alternative field name
+                "phone_number" to phoneNumber // Additional alternative
             )
             
             firestore.collection("users")
