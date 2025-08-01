@@ -30,11 +30,20 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
     
-    // Gigs collection - authenticated users can read all, write their own
+    // Gigs collection - authenticated users can read all, create their own, update their own
     match /gigs/{gigId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-                  request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+                   request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && 
+                           request.auth.uid == resource.data.userId;
+    }
+    
+    // Gig drafts collection - authenticated users can manage their own drafts
+    match /gig_drafts/{draftId} {
+      allow read, write: if request.auth != null && 
+                        (request.auth.uid == resource.data.userId || 
+                         request.auth.uid == request.resource.data.userId);
     }
     
     // Test collection for debugging

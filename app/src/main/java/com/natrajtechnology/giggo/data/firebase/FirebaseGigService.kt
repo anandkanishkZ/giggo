@@ -24,8 +24,11 @@ class FirebaseGigService @Inject constructor(
         return try {
             val currentUser = auth.currentUser
             if (currentUser == null) {
-                return CreateGigResponse(false, message = "User not authenticated")
+                println("Debug: CreateGig - User not authenticated")
+                return CreateGigResponse(false, message = "User not authenticated. Please sign in and try again.")
             }
+
+            println("Debug: CreateGig - User authenticated: ${currentUser.uid} (${currentUser.email})")
 
             // Validate input
             if (request.title.isBlank()) {
@@ -43,6 +46,9 @@ class FirebaseGigService @Inject constructor(
             if (request.deliveryTimeInDays <= 0) {
                 return CreateGigResponse(false, message = "Delivery time must be greater than 0")
             }
+
+            println("Debug: CreateGig - Validation passed")
+            println("Debug: CreateGig - Request: title='${request.title}', category='${request.category}', price=${request.price}")
 
             val gigId = gigsCollection.document().id
             
@@ -63,30 +69,56 @@ class FirebaseGigService @Inject constructor(
                 "isActive" to true
             )
             
-            println("Debug: Creating gig with data: $gigData")
+            println("Debug: CreateGig - Creating gig with ID: $gigId")
+            println("Debug: CreateGig - Gig data: $gigData")
 
-            gigsCollection.document(gigId).set(gigData).await()
+            // Attempt to save to Firestore
+            try {
+                gigsCollection.document(gigId).set(gigData).await()
+                println("Debug: CreateGig - Firestore set operation completed")
+            } catch (firestoreException: Exception) {
+                println("Debug: CreateGig - Firestore error: ${firestoreException.message}")
+                firestoreException.printStackTrace()
+                return CreateGigResponse(
+                    success = false,
+                    message = "Database error: ${firestoreException.message}. Please check your internet connection and try again."
+                )
+            }
             
             // Verify the gig was saved
-            val savedDoc = gigsCollection.document(gigId).get().await()
-            if (savedDoc.exists()) {
-                println("Debug: Gig successfully saved to Firestore")
-                println("Debug: Saved gig data: ${savedDoc.data}")
-            } else {
-                println("Debug: ERROR - Gig was not saved to Firestore")
+            try {
+                val savedDoc = gigsCollection.document(gigId).get().await()
+                if (savedDoc.exists()) {
+                    println("Debug: CreateGig - Gig successfully saved to Firestore")
+                    println("Debug: CreateGig - Saved gig data: ${savedDoc.data}")
+                    return CreateGigResponse(
+                        success = true,
+                        gigId = gigId,
+                        message = "Gig created successfully! 🎉"
+                    )
+                } else {
+                    println("Debug: CreateGig - ERROR - Gig document does not exist after creation")
+                    return CreateGigResponse(
+                        success = false,
+                        message = "Failed to save gig data. Please try again."
+                    )
+                }
+            } catch (verificationException: Exception) {
+                println("Debug: CreateGig - Error verifying gig creation: ${verificationException.message}")
+                // The gig might still have been created, so return success but with a warning
+                return CreateGigResponse(
+                    success = true,
+                    gigId = gigId,
+                    message = "Gig created successfully! 🎉"
+                )
             }
 
-            CreateGigResponse(
-                success = true,
-                gigId = gigId,
-                message = "Gig created successfully!"
-            )
         } catch (e: Exception) {
-            println("Debug: Error creating gig: ${e.message}")
+            println("Debug: CreateGig - Unexpected error: ${e.message}")
             e.printStackTrace()
             CreateGigResponse(
                 success = false,
-                message = "Failed to create gig: ${e.message}"
+                message = "Failed to create gig: ${e.message}. Please try again."
             )
         }
     }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 data class GigUiState(
@@ -86,19 +87,27 @@ class GigViewModel @Inject constructor(
     fun createGig() {
         val formState = _formState.value
         
+        println("Debug: GigViewModel - createGig() called")
+        println("Debug: GigViewModel - Form state: $formState")
+        
         if (!formState.isValid) {
+            val errorMsg = "Please fill all required fields correctly"
+            println("Debug: GigViewModel - Form validation failed: $errorMsg")
             _uiState.value = _uiState.value.copy(
-                errorMessage = "Please fill all required fields correctly"
+                errorMessage = errorMsg
             )
             return
         }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            println("Debug: GigViewModel - Starting gig creation process")
 
             try {
                 val price = formState.price.toDoubleOrNull() ?: 0.0
                 val deliveryTime = formState.deliveryTime.toIntOrNull() ?: 0
+
+                println("Debug: GigViewModel - Parsed values - price: $price, deliveryTime: $deliveryTime")
 
                 val result = gigRepository.createGig(
                     title = formState.title,
@@ -109,6 +118,8 @@ class GigViewModel @Inject constructor(
                     requirements = formState.requirements
                 )
 
+                println("Debug: GigViewModel - Repository result: success=${result.success}, message=${result.message}")
+
                 if (result.success) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -118,16 +129,21 @@ class GigViewModel @Inject constructor(
                     )
                     clearForm()
                     loadUserGigs() // Refresh gigs list
+                    println("Debug: GigViewModel - Gig created successfully with ID: ${result.gigId}")
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         errorMessage = result.message
                     )
+                    println("Debug: GigViewModel - Gig creation failed: ${result.message}")
                 }
             } catch (e: Exception) {
+                val errorMsg = "Failed to create gig: ${e.message}"
+                println("Debug: GigViewModel - Exception during gig creation: $errorMsg")
+                e.printStackTrace()
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Failed to create gig: ${e.message}"
+                    errorMessage = errorMsg
                 )
             }
         }
@@ -316,6 +332,85 @@ class GigViewModel @Inject constructor(
             requirements = requirements
         )
         _formState.value = newState.copy(isValid = validateForm(newState))
+    }
+
+    /**
+     * Creates a test gig for debugging purposes
+     */
+    fun createTestGig() {
+        println("Debug: GigViewModel - Creating test gig")
+        
+        // Set test form data
+        _formState.value = GigFormState(
+            title = "Test Android Development Service",
+            description = "I will create a professional Android app for your business. This includes UI/UX design, development, testing, and deployment to Google Play Store.",
+            category = "Mobile Development",
+            price = "5000",
+            deliveryTime = "7",
+            requirements = "Please provide your app requirements, target audience, and any specific features you need.",
+            isValid = true
+        )
+        
+        // Create the gig
+        createGig()
+    }
+
+    /**
+     * Debug function to check authentication and permissions
+     */
+    fun debugGigCreation() {
+        viewModelScope.launch {
+            try {
+                println("=== GIG CREATION DEBUG ===")
+                
+                // Check authentication
+                val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                if (currentUser != null) {
+                    println("Debug: User authenticated - ID: ${currentUser.uid}, Email: ${currentUser.email}")
+                    
+                    // Test Firestore connection
+                    try {
+                        val testDoc = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            .collection("test")
+                            .document("gig_debug_${System.currentTimeMillis()}")
+                        
+                        testDoc.set(mapOf(
+                            "test" to "gig_creation_debug",
+                            "userId" to currentUser.uid,
+                            "timestamp" to com.google.firebase.Timestamp.now()
+                        )).await()
+                        
+                        println("Debug: Firestore connection working - test document created")
+                        
+                        // Clean up test document
+                        testDoc.delete().await()
+                        println("Debug: Test document cleaned up")
+                        
+                    } catch (e: Exception) {
+                        println("Debug: Firestore connection error: ${e.message}")
+                        e.printStackTrace()
+                    }
+                    
+                } else {
+                    println("Debug: User NOT authenticated")
+                }
+                
+                // Check form validation
+                val formState = _formState.value
+                println("Debug: Form state - Valid: ${formState.isValid}")
+                println("Debug: Title: '${formState.title}' (length: ${formState.title.length})")
+                println("Debug: Description: '${formState.description}' (length: ${formState.description.length})")
+                println("Debug: Category: '${formState.category}'")
+                println("Debug: Price: '${formState.price}' (parsed: ${formState.price.toDoubleOrNull()})")
+                println("Debug: Delivery Time: '${formState.deliveryTime}' (parsed: ${formState.deliveryTime.toIntOrNull()})")
+                
+                println("=== END GIG DEBUG ===")
+                
+            } catch (e: Exception) {
+                println("Debug: Error in debug function: ${e.message}")
+                e.printStackTrace()
+            }
+        }
     }
 
 }
